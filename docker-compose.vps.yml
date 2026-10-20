@@ -1,0 +1,76 @@
+# ArpitVarta on the GrahVarta VPS, served at https://arpitvarta.grahvarta.com
+#
+# GrahVarta's nginx container already owns ports 80/443, so this stack has no
+# nginx and publishes no ports. The web-facing services join GrahVarta's
+# Docker network under unique av-* names, and GrahVarta's nginx proxies the
+# subdomain to them (see docker/nginx.subdomain.conf).
+#
+#   docker compose -p arpitvarta -f docker-compose.vps.yml up -d --build
+
+x-public: &public
+  restart: unless-stopped
+  networks: [default, grahvarta]
+
+services:
+  av-db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: arpitvarta_db
+      POSTGRES_USER: arpitvarta_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - av_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arpitvarta_user -d arpitvarta_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [default]   # never on the shared network
+
+  av-backend:
+    <<: *public
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: av-db
+      NODE_ENV: production
+    depends_on:
+      av-db:
+        condition: service_healthy
+    volumes:
+      - av_uploads:/app/uploads
+
+  av-web:
+    <<: *public
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${PUBLIC_URL}
+        VITE_SOCKET_URL: ${PUBLIC_URL}
+
+  av-professional:
+    <<: *public
+    build:
+      context: ./professional-portal
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${PUBLIC_URL}
+
+  av-admin:
+    <<: *public
+    build:
+      context: ./admin-portal
+      dockerfile: Dockerfile
+
+networks:
+  grahvarta:
+    external: true
+    name: grahvarta_default
+
+volumes:
+  av_postgres:
+  av_uploads:
