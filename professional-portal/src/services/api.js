@@ -16,10 +16,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    // An expired session sends the user back to the portal's login page.
+    // A failed login itself (wrong password) must stay on the page so the
+    // form can show the error.
+    const isLoginCall = /\/auth\/(login|register)$/.test(err.config?.url || '')
+    if (err.response?.status === 401 && !isLoginCall) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      window.location.href = `${import.meta.env.BASE_URL}login` // BASE_URL = /professional-portal/
     }
     return Promise.reject(err)
   }

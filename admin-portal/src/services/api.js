@@ -13,7 +13,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401 || err.response?.status === 403) {
+    const isLoginCall = /\/login$/.test(err.config?.url || '');
+    if ((err.response?.status === 401 || err.response?.status === 403) && !isLoginCall) {
       localStorage.removeItem('admin_token');
       window.location.href = '/admin/login';
     }
