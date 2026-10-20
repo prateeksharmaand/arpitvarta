@@ -130,7 +130,7 @@ SMTP_PORT=465
 SMTP_SECURE=true
 SMTP_USER=
 SMTP_PASS=
-SMTP_FROM="ArpitVarta" <support@arpitvarta.com>
+SMTP_FROM="ArpitVarta <support@arpitvarta.com>"
 
 # Uploads
 UPLOAD_DIR=./uploads
