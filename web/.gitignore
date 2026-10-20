@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.env
+server/.horoscope-cache.json
+server/.kundli-cache.json
+server/.tarot-cache.json
+server/.numerology-cache.json
+server/.vastu-cache.json
+server/.kundli-match-cache.json
+server/.transit-cache.json
+server/.love-cache.json
+server/.panchang-cache.json
+server/.muhurat-cache.json
+server/.blog-cache.json

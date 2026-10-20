@@ -1,0 +1,62 @@
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Layout from './components/Layout';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import UsersPage from './pages/UsersPage';
+import UserDetailPage from './pages/UserDetailPage';
+import ProfessionalsPage from './pages/ProfessionalsPage';
+import CategoriesPage from './pages/CategoriesPage';
+import TransactionsPage from './pages/TransactionsPage';
+import NotificationsPage from './pages/NotificationsPage';
+import WithdrawalsPage from './pages/WithdrawalsPage';
+import CommunityPage from './pages/CommunityPage';
+import HiringsPage from './pages/HiringsPage';
+import RechargeOffersPage from './pages/RechargeOffersPage';
+import SubadminsPage from './pages/SubadminsPage';
+
+function ProtectedRoute({ children }) {
+  const { admin, loading } = useAuth();
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" /></div>;
+  return admin ? children : <Navigate to="/login" replace />;
+}
+
+function SuperAdminRoute({ children }) {
+  const { admin, loading } = useAuth();
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" /></div>;
+  if (!admin) return <Navigate to="/login" replace />;
+  return admin.role === 'superadmin' ? children : <Navigate to="/" replace />;
+}
+
+function AppRoutes() {
+  const { admin } = useAuth();
+  return (
+    <Routes>
+      <Route path="/login" element={admin ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+        <Route index element={<DashboardPage />} />
+        <Route path="users" element={<UsersPage />} />
+        <Route path="users/:id" element={<UserDetailPage />} />
+        <Route path="professionals" element={<ProfessionalsPage />} />
+        <Route path="withdrawals" element={<WithdrawalsPage />} />
+        <Route path="categories" element={<CategoriesPage />} />
+        <Route path="transactions" element={<TransactionsPage />} />
+        <Route path="community" element={<CommunityPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="hirings" element={<HiringsPage />} />
+        <Route path="recharge-offers" element={<RechargeOffersPage />} />
+        <Route path="sub-admins" element={<SuperAdminRoute><SubadminsPage /></SuperAdminRoute>} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
+  );
+}

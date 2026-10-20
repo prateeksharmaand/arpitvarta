@@ -1,0 +1,244 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+@keyframes revealUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pageIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheen {
+  to { transform: translateX(120%) skewX(-20deg); }
+}
+
+@layer base {
+  :root {
+    /* Dark theme (default) */
+    --color-background: 10 14 24;
+    --color-surface: 16 22 36;
+    --color-surface-light: 28 37 56;
+    --color-card: 20 27 43;
+    --color-text-primary: 241 245 249;
+    --color-text-secondary: 160 172 192;
+    --color-text-muted: 110 122 145;
+    --color-border: 38 50 74;
+    --color-divider: 28 37 56;
+    --color-error: 229 57 53;
+    --color-success: 67 160 71;
+  }
+
+  /* Day theme — white base with a soft light-yellow gradient (arpitvarta.com-style), warm neutrals for surfaces and text. */
+  :root[data-theme='light'] {
+    --color-background: 255 255 255;
+    --color-surface: 248 250 252;
+    --color-surface-light: 245 240 255;
+    --color-card: 255 255 255;
+    --color-text-primary: 15 23 42;
+    --color-text-secondary: 71 85 105;
+    --color-text-muted: 100 116 139;
+    --color-border: 226 232 240;
+    --color-divider: 241 245 249;
+    --color-error: 229 57 53;
+    --color-success: 43 160 90;
+  }
+
+  :root[data-theme='light'] body {
+    background-image: linear-gradient(170deg, #ffffff 0%, #fdfbff 40%, #faf5ff 75%, #f3e8ff 100%);
+    background-attachment: fixed;
+  }
+
+  /* Tailwind sizes are rem-based, so this scales all text and spacing ~6%
+     smaller on tablets/desktops. Phones keep 16px so inputs don't trigger
+     iOS focus-zoom. */
+  @media (min-width: 768px) {
+    html {
+      font-size: 15px;
+    }
+  }
+
+  body {
+    @apply bg-background text-text-primary font-sans transition-colors duration-300;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-surface;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-background rounded;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply relative overflow-hidden inline-flex items-center justify-center gap-2 bg-brand text-white font-semibold py-3 px-6 rounded-xl hover:bg-brand-light transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-120%) skewX(-20deg);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+    pointer-events: none;
+  }
+  @media (hover: hover) {
+    .btn-primary:not(:disabled):hover::after {
+      animation: sheen 0.8s ease-out;
+    }
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 border border-brand text-brand font-semibold py-3 px-6 rounded-xl hover:bg-brand/10 transition-colors duration-200;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 text-text-secondary font-medium py-3 px-6 rounded-xl hover:bg-surface-light transition-colors duration-200;
+  }
+
+  .input-field {
+    @apply w-full bg-surface-light border border-border rounded-xl px-4 py-3 text-text-primary placeholder-text-muted focus:outline-none focus:border-brand transition-colors duration-200;
+  }
+
+  .card {
+    @apply bg-card border border-border rounded-2xl p-5 relative isolate;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+
+  /* Corner gradient that fades in on hover; sits above the card background
+     but below its content (z-index -1 inside the isolated stacking context). */
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(circle at 100% 0%, rgba(124, 58, 237, 0.22), transparent 60%);
+  }
+
+  :root[data-theme='light'] .card {
+    background-image: linear-gradient(160deg, #ffffff 0%, #fdfbff 65%, #faf5ff 100%);
+  }
+
+  :root[data-theme='light'] .card::before {
+    background: radial-gradient(circle at 100% 0%, rgba(91, 33, 182, 0.18), rgba(124, 58, 237, 0.08) 40%, transparent 65%);
+  }
+
+  @media (hover: hover) {
+    .card:not(.card-static):hover {
+      transform: translateY(-4px);
+      border-color: rgba(124, 58, 237, 0.55);
+      box-shadow: 0 18px 32px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(124, 58, 237, 0.12);
+    }
+    :root[data-theme='light'] .card:not(.card-static):hover {
+      box-shadow: 0 18px 34px -12px rgba(180, 80, 15, 0.38), 0 4px 10px -4px rgba(120, 50, 5, 0.12);
+    }
+    .card:not(.card-static):hover::before {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card:not(.card-static):hover {
+      transform: none;
+    }
+  }
+
+  /* Skeleton shimmer: a soft highlight sweeps across a placeholder block. */
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(var(--color-surface-light));
+  }
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  :root[data-theme='light'] .shimmer::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  }
+
+  /* Scroll reveal (see components/ui/Reveal). Hidden only until in view;
+     `backwards` fill leaves no lingering transform afterwards. */
+  .reveal:not(.reveal-in) {
+    opacity: 0;
+  }
+  .reveal-in {
+    animation: revealUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .reveal-in .stagger-children > * {
+    animation: revealUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .reveal-in .stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+  .reveal-in .stagger-children > *:nth-child(2) { animation-delay: 0.12s; }
+  .reveal-in .stagger-children > *:nth-child(3) { animation-delay: 0.19s; }
+  .reveal-in .stagger-children > *:nth-child(4) { animation-delay: 0.26s; }
+  .reveal-in .stagger-children > *:nth-child(n + 5) { animation-delay: 0.32s; }
+
+  .page-enter {
+    animation: pageIn 0.35s ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal:not(.reveal-in) { opacity: 1; }
+    .reveal-in,
+    .reveal-in .stagger-children > *,
+    .page-enter,
+    .shimmer::after,
+    .btn-primary::after {
+      animation: none !important;
+    }
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .badge-online {
+    @apply badge bg-success/20 text-success;
+  }
+
+  .badge-offline {
+    @apply badge bg-text-muted/20 text-text-muted;
+  }
+
+  .badge-brand {
+    @apply badge bg-brand/20 text-brand;
+  }
+
+  .badge-gold {
+    @apply badge bg-gold/20 text-gold;
+  }
+
+  .container-page {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
+
+/* Non-Latin scripts: use the Noto family loaded for the chosen language
+   (see src/i18n/store.js), falling back to Inter for digits and Latin. */
+html[lang]:not([lang='en']) body {
+  font-family: var(--lang-font, 'Inter'), 'Inter', system-ui, sans-serif;
+}

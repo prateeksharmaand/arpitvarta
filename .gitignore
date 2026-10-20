@@ -1,0 +1,28 @@
+# Environment files — never commit secrets
+
+backend/- Copy.env
+.env.local
+.env
+**/.env
+
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+dist/
+.dart_tool/
+
+# Local uploads, logs, signing material
+backend/uploads/
+logs/
+*.log
+**/android/key.properties
+**/android/app/upload-keystore.jks
+*.jks
+*.keystore
+**/google-services.json
+**/GoogleService-Info.plist
+.DS_Store
+.idea/
+*.iml

@@ -1,0 +1,480 @@
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { ChevronLeft, ChevronRight, X, Phone, Mail, Smartphone, Globe, Calendar, Users, Eye, EyeOff, Copy, Briefcase, Award, MapPin, BadgeCheck } from 'lucide-react';
+import { format } from 'date-fns';
+import api from '../services/api';
+import PageHeader from '../components/PageHeader';
+import { TableShimmer } from '../components/Shimmer';
+import { Tooltip } from '../components/Tooltip';
+import toast from 'react-hot-toast';
+
+const ALL_STATUSES = ['pending', 'shortlisted', 'round1', 'round2', 'activated', 'rejected'];
+const STATUS_TABS = [...ALL_STATUSES, ''];
+
+const STATUS_LABELS = {
+  pending:     'Pending',
+  shortlisted: 'Shortlisted',
+  round1:      'Round 1',
+  round2:      'Round 2',
+  activated:   'Activated',
+  rejected:    'Rejected',
+};
+
+const STATUS_COLORS = {
+  pending:     'badge-gray',
+  shortlisted: 'badge-warning',
+  round1:      'bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded-full text-xs font-medium',
+  round2:      'bg-purple-500/15 text-purple-400 px-2 py-0.5 rounded-full text-xs font-medium',
+  activated:   'badge-success',
+  rejected:    'badge-error',
+};
+
+function statusBadge(s) { return STATUS_COLORS[s] || 'badge-gray'; }
+
+function DetailPanel({ app, onClose, onUpdated }) {
+  const [notes, setNotes] = useState(app.admin_notes || '');
+  const [newStatus, setNewStatus] = useState(app.status);
+  const [saving, setSaving] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [livePassword, setLivePassword] = useState(app.temp_password || null);
+  const autoReset = useRef(false);
+
+  // Auto-generate password on open if agent is onboarded but has no stored password
+  useEffect(() => {
+    if (app.converted_to_professional && !app.temp_password && !autoReset.current) {
+      autoReset.current = true;
+      api.post(`/hirings/${app.id}/reset-password`)
+        .then(res => { setLivePassword(res.data.data.password); onUpdated(); })
+        .catch(() => {});
+    }
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.patch(`/hirings/${app.id}`, { status: newStatus, admin_notes: notes });
+      toast.success(`Status updated to ${STATUS_LABELS[newStatus]}`);
+      onUpdated();
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addAsProfessional = async () => {
+    if (!window.confirm(`Add ${app.name} as a professional? A welcome email will be sent to ${app.email}.`)) return;
+    setConverting(true);
+    try {
+      const res = await api.post(`/hirings/${app.id}/activate-as-professional`);
+      if (res.data.email_sent) {
+        toast.success('Professional account created! Welcome email sent.');
+      } else {
+        toast('Professional account created, but email failed. Please resend manually.', { icon: '⚠️' });
+      }
+      onUpdated();
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create professional account');
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  const resendEmail = async () => {
+    if (!window.confirm(`Resend welcome email to ${app.email}? A new temporary password will be generated.`)) return;
+    setResending(true);
+    try {
+      await api.post(`/hirings/${app.id}/resend-email`);
+      toast.success(`Welcome email resent to ${app.email}`);
+      onUpdated();
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to resend email');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const langs = Array.isArray(app.languages) ? app.languages : [];
+  const skills = Array.isArray(app.skills) ? app.skills : [];
+  const quals = Array.isArray(app.qualifications) ? app.qualifications : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex">
+      <div className="flex-1 bg-black/50" onClick={onClose} />
+      <div className="w-[500px] bg-surface border-l border-border flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+          <div>
+            <h2 className="font-semibold text-white text-lg">Application Details</h2>
+            {app.token_no && <p className="text-xs text-text-muted mt-0.5">Token: <span className="text-brand font-mono">{app.token_no}</span></p>}
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-light text-text-muted hover:text-white transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {/* Photo + name */}
+          <div className="flex items-center gap-4">
+            {app.profile_picture_url ? (
+              <img src={`https://api.arpitvarta.com${app.profile_picture_url}`} alt={app.name} className="w-16 h-16 rounded-full object-cover border border-border" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-surface-light flex items-center justify-center text-2xl font-bold text-brand">
+                {app.name?.[0]?.toUpperCase() || '?'}
+              </div>
+            )}
+            <div>
+              <p className="text-white font-semibold text-lg">{app.name}</p>
+              <span className={statusBadge(app.status)}>{STATUS_LABELS[app.status] || app.status}</span>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div className="card p-4 space-y-2">
+            <p className="text-xs text-text-muted uppercase font-semibold tracking-wider mb-3">Contact</p>
+            <Row icon={<Phone size={14} />} label="Phone" value={app.phone} />
+            <Row icon={<Mail size={14} />} label="Email" value={app.email || '—'} />
+            <Row icon={<Smartphone size={14} />} label="Phone type" value={app.phone_type || '—'} capitalize />
+            {app.converted_to_professional && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-text-muted"><Eye size={14} /></span>
+                <span className="text-text-muted w-24 shrink-0">Password</span>
+                {livePassword ? (
+                  <>
+                    <span className="font-mono text-brand tracking-widest">
+                      {showPassword ? livePassword : '••••••••'}
+                    </span>
+                    <button
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="p-1 rounded hover:bg-surface-light text-text-muted hover:text-white transition-colors"
+                      title={showPassword ? 'Hide' : 'Show'}
+                    >
+                      {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                    {showPassword && (
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(livePassword); toast.success('Copied'); }}
+                        className="p-1 rounded hover:bg-surface-light text-text-muted hover:text-white transition-colors"
+                        title="Copy"
+                      >
+                        <Copy size={13} />
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-text-muted text-xs italic">Generating…</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Profession */}
+          <div className="card p-4 space-y-2">
+            <p className="text-xs text-text-muted uppercase font-semibold tracking-wider mb-3">Profession</p>
+            <Row icon={<Briefcase size={14} />} label="Category" value={app.category_name || '—'} />
+            <Row icon={<Briefcase size={14} />} label="Title" value={app.profession_title || '—'} />
+            <Row icon={<Award size={14} />} label="Experience" value={app.experience_years ? `${app.experience_years} years` : '—'} />
+            <Row icon={<BadgeCheck size={14} />} label="License / Reg." value={app.license_number || '—'} />
+            <Row icon={<MapPin size={14} />} label="City" value={app.city || '—'} />
+            {quals.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-2">
+                {quals.map((q) => <span key={q} className="px-2.5 py-0.5 bg-surface-light rounded-full text-xs text-text-secondary">{q}</span>)}
+              </div>
+            )}
+          </div>
+
+          {/* Personal */}
+          <div className="card p-4 space-y-2">
+            <p className="text-xs text-text-muted uppercase font-semibold tracking-wider mb-3">Personal</p>
+            <Row icon={<Calendar size={14} />} label="DOB" value={app.dob ? format(new Date(app.dob), 'dd MMM yyyy') : '—'} />
+            <Row icon={<Users size={14} />} label="Gender" value={app.gender || '—'} capitalize />
+            <Row icon={<Globe size={14} />} label="Works online" value={app.works_online ? 'Yes' : 'No'} />
+          </div>
+
+          {/* Languages */}
+          {langs.length > 0 && (
+            <div className="card p-4">
+              <p className="text-xs text-text-muted uppercase font-semibold tracking-wider mb-3">Languages</p>
+              <div className="flex flex-wrap gap-1.5">
+                {langs.map((l) => <span key={l} className="px-2.5 py-0.5 bg-surface-light rounded-full text-xs text-text-secondary">{l}</span>)}
+              </div>
+            </div>
+          )}
+
+          {/* Skills */}
+          {skills.length > 0 && (
+            <div className="card p-4">
+              <p className="text-xs text-text-muted uppercase font-semibold tracking-wider mb-3">Specialisations</p>
+              <div className="flex flex-wrap gap-1.5">
+                {skills.map((s) => <span key={s} className="px-2.5 py-0.5 bg-brand/10 text-brand rounded-full text-xs">{s}</span>)}
+              </div>
+            </div>
+          )}
+
+          {/* About Me */}
+          {app.about_me && (
+            <div className="card p-4">
+              <p className="text-xs text-text-muted uppercase font-semibold tracking-wider mb-3">About Me</p>
+              <p className="text-sm text-text-secondary leading-relaxed">{app.about_me}</p>
+            </div>
+          )}
+
+          <p className="text-xs text-text-muted">
+            Applied {format(new Date(app.created_at), 'dd MMM yyyy, HH:mm')}
+          </p>
+
+          {/* Status selector */}
+          <div>
+            <label className="block text-xs text-text-muted mb-2">Update Status</label>
+            <div className="grid grid-cols-3 gap-2">
+              {ALL_STATUSES.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setNewStatus(s)}
+                  className={`py-2 px-3 rounded-xl text-xs font-medium border transition-colors ${
+                    newStatus === s
+                      ? 'bg-brand text-white border-brand'
+                      : 'bg-surface-light text-text-secondary border-border hover:text-white'
+                  }`}
+                >
+                  {STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Admin notes */}
+          <div>
+            <label className="block text-xs text-text-muted mb-1.5">Admin Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="w-full bg-surface-light border border-border rounded-xl px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-brand/50 placeholder:text-text-muted"
+              placeholder="Optional notes about this application…"
+            />
+          </div>
+        </div>
+
+        {/* Add as Professional — shown only when activated and not yet converted */}
+        {app.status === 'activated' && !app.converted_to_professional && (
+          <div className="px-6 pb-0 pt-4 border-t border-border shrink-0">
+            <button
+              onClick={addAsProfessional}
+              disabled={converting}
+              className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-500 text-white text-sm font-semibold transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              {converting ? (
+                <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creating Account…</>
+              ) : (
+                <>⭐ Add as Professional &amp; Send Welcome Email</>
+              )}
+            </button>
+          </div>
+        )}
+        {app.converted_to_professional && (
+          <div className="px-6 pb-0 pt-4 border-t border-border shrink-0 space-y-2">
+            <div className="w-full py-2.5 rounded-xl bg-green-900/30 border border-green-700/40 text-green-400 text-sm font-medium text-center">
+              ✓ Already added as Professional
+            </div>
+            {/* Retry email button — only when email failed */}
+            {!app.welcome_email_sent && (
+              <button
+                onClick={resendEmail}
+                disabled={resending}
+                className="w-full py-2.5 rounded-xl bg-brand/90 hover:bg-brand text-white text-sm font-semibold transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {resending ? (
+                  <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Sending…</>
+                ) : (
+                  <>✉ Retry — Resend Welcome Email</>
+                )}
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="px-6 py-4 border-t border-border shrink-0 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-border text-text-secondary hover:text-white text-sm font-medium transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={saving || (newStatus === app.status && notes === (app.admin_notes || ''))}
+            className="flex-1 py-2.5 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand/90 transition-colors disabled:opacity-40"
+          >
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ icon, label, value, capitalize }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-text-muted">{icon}</span>
+      <span className="text-text-muted w-24 shrink-0">{label}</span>
+      <span className={`text-white ${capitalize ? 'capitalize' : ''}`}>{value}</span>
+    </div>
+  );
+}
+
+export default function HiringsPage() {
+  const [hirings, setHirings] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('pending');
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const limit = 20;
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    api.get('/hirings', { params: { page, limit, status: statusFilter || undefined } })
+      .then((r) => { setHirings(r.data.data); setTotal(r.data.total); })
+      .catch(() => toast.error('Failed to load applications'))
+      .finally(() => setLoading(false));
+  }, [page, statusFilter]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return (
+    <div className="p-8">
+      <PageHeader title="Agent Hirings" subtitle={`${total} application${total !== 1 ? 's' : ''}`} />
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {STATUS_TABS.map((s) => (
+          <button
+            key={s}
+            onClick={() => { setStatusFilter(s); setPage(1); }}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${statusFilter === s ? 'bg-brand text-white' : 'bg-surface-light text-text-secondary hover:text-white'}`}
+          >
+            {s === '' ? 'All' : STATUS_LABELS[s]}
+          </button>
+        ))}
+      </div>
+
+      <div className="card p-0 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-text-muted text-xs uppercase">
+              <th className="px-4 py-3 text-left">Applicant</th>
+              <th className="px-4 py-3 text-left">Token</th>
+              <th className="px-4 py-3 text-left">Phone</th>
+              <th className="px-4 py-3 text-left">Profession</th>
+              <th className="px-4 py-3 text-left">Specialisations</th>
+              <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Applied</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <TableShimmer rows={8} cols={7} />
+            ) : hirings.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-12 text-text-muted">No applications found</td></tr>
+            ) : hirings.map((h) => (
+              <tr key={h.id} onClick={() => setSelected(h)} className="border-b border-divider hover:bg-surface-light/50 cursor-pointer">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    {h.profile_picture_url ? (
+                      <img src={`https://api.arpitvarta.com${h.profile_picture_url}`} alt={h.name} className="w-8 h-8 rounded-full object-cover border border-border" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-surface-light flex items-center justify-center text-sm font-bold text-brand">
+                        {h.name?.[0]?.toUpperCase() || '?'}
+                      </div>
+                    )}
+                    <p className="font-medium text-white">{h.name}</p>
+                  </div>
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-brand">{h.token_no || '—'}</td>
+                <td className="px-4 py-3 text-text-secondary">{h.phone}</td>
+                <td className="px-4 py-3 text-xs">
+                  <p className="text-text-secondary">{h.profession_title || '—'}</p>
+                  {h.category_name && <p className="text-text-muted">{h.category_name}</p>}
+                </td>
+                <td className="px-4 py-3 text-text-muted text-xs">
+                  {Array.isArray(h.skills) ? h.skills.slice(0, 2).join(', ') + (h.skills.length > 2 ? ` +${h.skills.length - 2}` : '') : '—'}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-col gap-1">
+                    <Tooltip content="Current application stage" side="left">
+                      <span className={`${statusBadge(h.status)} cursor-default`}>{STATUS_LABELS[h.status] || h.status}</span>
+                    </Tooltip>
+                    {h.status === 'activated' && (
+                      <>
+                        {h.converted_to_professional ? (
+                          <Tooltip
+                            side="left"
+                            content="A user account with role 'professional' has been created and the professional profile is live in the marketplace."
+                          >
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/15 text-green-400 w-fit cursor-default">
+                              ✓ Added as Professional
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip
+                            side="left"
+                            content="This agent is activated but has NOT been added to the professional panel yet. Open the application and click 'Add as Professional' to create their account."
+                          >
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/15 text-yellow-400 w-fit cursor-default">
+                              ⚠ Not Added Yet
+                            </span>
+                          </Tooltip>
+                        )}
+                        {h.converted_to_professional && (
+                          h.welcome_email_sent ? (
+                            <Tooltip
+                              side="left"
+                              content={`Welcome email with login credentials was successfully delivered to ${h.email}.`}
+                            >
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/15 text-blue-400 w-fit cursor-default">
+                                ✉ Email Sent
+                              </span>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip
+                              side="left"
+                              content={`Welcome email to ${h.email} failed to deliver. The professional account exists but the agent may not have their credentials. Please contact them manually.`}
+                            >
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-400 w-fit cursor-default">
+                                ✉ Email Not Sent
+                              </span>
+                            </Tooltip>
+                          )
+                        )}
+                      </>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-text-muted text-xs">
+                  {format(new Date(h.created_at), 'MMM d, yyyy')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <p className="text-xs text-text-muted">Page {page} of {totalPages}</p>
+            <div className="flex gap-2">
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="btn-ghost px-2 py-1.5 disabled:opacity-30"><ChevronLeft size={16} /></button>
+              <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="btn-ghost px-2 py-1.5 disabled:opacity-30"><ChevronRight size={16} /></button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selected && (
+        <DetailPanel app={selected} onClose={() => setSelected(null)} onUpdated={fetchData} />
+      )}
+    </div>
+  );
+}

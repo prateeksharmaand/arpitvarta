@@ -1,0 +1,7 @@
+.git
+*.md
+deploy
+docker
+user_app
+preview
+.env*

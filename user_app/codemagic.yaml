@@ -1,0 +1,83 @@
+workflows:
+
+  # ── Android ──────────────────────────────────────────────────────────────
+  android-workflow:
+    name: ArpitVarta (User) — Android
+    max_build_duration: 60
+
+    environment:
+      flutter: stable
+      android_signing:
+        - arpitvarta_user_keystore   # set up in Codemagic dashboard
+
+    scripts:
+      - name: Flutter pub get
+        script: flutter pub get
+
+      - name: Build Android App Bundle
+        script: |
+          flutter build appbundle \
+            --release \
+            --build-number=$BUILD_NUMBER
+
+    artifacts:
+      - build/user/outputs/bundle/release/user-release.aab
+
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal       # promote to alpha/beta/production in Play Console
+      email:
+        recipients:
+          - prateek.sharma6@globallogic.com
+        notify:
+          success: true
+          failure: true
+
+  # ── iOS ──────────────────────────────────────────────────────────────────
+  ios-workflow:
+    name: ArpitVarta (User) — iOS
+    max_build_duration: 60
+
+    environment:
+      flutter: stable
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.arpitvarta.user
+
+    scripts:
+      - name: Flutter pub get
+        script: flutter pub get
+
+      - name: Set iOS deployment target
+        script: sed -i '' "s/platform :ios, .*/platform :ios, '15.0'/g" ./ios/Podfile
+
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install
+          cd ..
+
+      - name: Build iOS IPA
+        script: |
+          flutter build ipa \
+            --release \
+            --build-number=$BUILD_NUMBER \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
+      email:
+        recipients:
+          - prateek.sharma6@globallogic.com
+        notify:
+          success: true
+          failure: true
